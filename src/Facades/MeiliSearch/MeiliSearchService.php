@@ -2,8 +2,8 @@
 
 namespace Omure\ScoutAdvancedMeilisearch\Facades\MeiliSearch;
 
-use App\Models\Interfaces\MeilisearchSearchableModel;
 use MeiliSearch\Client;
+use Omure\ScoutAdvancedMeilisearch\Interfaces\MeiliSearchSearchableModel;
 
 class MeiliSearchService
 {
