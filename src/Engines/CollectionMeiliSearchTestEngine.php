@@ -159,7 +159,8 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
         $wheres = [];
 
         foreach ($builder->wheres as $where) {
-            $wheres[] = $where[0];
+            /** @var BuilderWhere $where */
+            $wheres[] = $where->field;
         }
 
         $filteredKeys = array_unique(array_merge($wheres, array_keys($builder->whereIns)));
