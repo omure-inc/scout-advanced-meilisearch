@@ -24,12 +24,60 @@ class MeiliSearchExtendedEngine extends MeiliSearchEngine
         return ltrim($filters, 'OR ');
     }
 
+    public function update($models)
+    {
+        if ($models->isEmpty()) {
+            return;
+        }
+
+        $index = $this->meilisearch->index($models->first()->searchableAs());
+
+        if ($this->usesSoftDelete($models->first()) && $this->softDelete) {
+            $models->each->pushSoftDeleteMetadata();
+        }
+
+        $objects = $models->map(function ($model) {
+            if (empty($searchableData = $model->toSearchableArray())) {
+                return;
+            }
+
+            $searchableData = $this->replaceNullsWithStrings($searchableData);
+
+            return array_merge(
+                [$model->getKeyName() => $model->getScoutKey()],
+                $searchableData,
+                $model->scoutMetadata()
+            );
+        })->filter()->values()->all();
+
+        if (! empty($objects)) {
+            $index->addDocuments($objects, $models->first()->getKeyName());
+        }
+    }
+
+    public function replaceNullsWithStrings(array $array): array
+    {
+        return collect($array)->map(function ($element) {
+            if (is_null($element)) {
+                return 'null';
+            }
+
+            if (is_array($element)) {
+                return $this->replaceNullsWithStrings($element);
+            }
+
+            return $element;
+        })->toArray();
+    }
+
     private function formatToString(BuilderWhere $where): string
     {
         $value = $where->value;
 
         if (is_bool($value)) {
             $value = $value ? 'true' : 'false';
+        } elseif (is_null($value)) {
+            $value = '"null"';
         } elseif (!is_numeric($value)) {
             $value = '"' . $value . '"';
         }
