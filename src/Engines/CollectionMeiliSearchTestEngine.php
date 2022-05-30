@@ -4,21 +4,24 @@ namespace Omure\ScoutAdvancedMeilisearch\Engines;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
-use Laravel\Scout\Builder;
+use Laravel\Scout\Builder as ScoutBuilder;
 use Laravel\Scout\Engines\CollectionEngine;
-use Omure\ScoutAdvancedMeilisearch\Exceptions\CollectionMeiliSearchException;
+use Illuminate\Database\Query\Builder as DatabaseQueryBuilder;
+use Omure\ScoutAdvancedMeilisearch\Builder;
+use Omure\ScoutAdvancedMeilisearch\BuilderWhere;
+use Omure\ScoutAdvancedMeilisearch\Exceptions\BuilderException;
 use Omure\ScoutAdvancedMeilisearch\Interfaces\MeiliSearchSearchableModel;
 
 class CollectionMeiliSearchTestEngine extends CollectionEngine
 {
     /**
-     * @throws CollectionMeiliSearchException
+     * @throws BuilderException
      */
-    protected function searchModels(Builder $builder): Collection
+    protected function searchModels(ScoutBuilder $builder): Collection
     {
         $this->checkQuery($builder);
 
-        /** @var \Illuminate\Database\Query\Builder $query */
+        /** @var DatabaseQueryBuilder $query */
         $query = $builder->model->query()->orderBy($builder->model->getKeyName(), 'desc');
 
         $models = $this->ensureSoftDeletesAreHandled($builder, $query)
@@ -34,36 +37,11 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
                 return false;
             }
 
-            $searchables = $model->toSearchableArray();
+            $searchable = $model->toSearchableArray();
 
-            if (count($builder->wheres) > 0) {
-                foreach ($builder->wheres as $value) {
-                    if (is_array($searchables[$value[0]])) {
-                        $isFound = false;
-                        foreach ($searchables[$value[0]] as $searchValue) {
-                            if ($this->isValueFound($value[2], $value[1], $searchValue)) {
-                                $isFound = true;
-                                break;
-                            }
-                        }
-                        if (!$isFound) {
-                            return false;
-                        }
-                    } elseif (!$this->isValueFound($value[2], $value[1], $searchables[$value[0]])) {
-                        return false;
-                    }
-                }
-            }
-
-            if (count($builder->whereIns) > 0) {
-                foreach ($builder->whereIns as $key => $value) {
-                    if (is_array($searchables[$key])) {
-                        if (!array_intersect($value, $searchables[$key])) {
-                            return false;
-                        }
-                    } elseif (!in_array($searchables[$key], $value)) {
-                        return false;
-                    }
+            if (count($builder->wheres)) {
+                if (!$this->checkConditions($builder->wheres, $searchable)) {
+                    return false;
                 }
             }
 
@@ -73,7 +51,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
 
             $searchableKeys = $model->getSearchableAttributes();
 
-            foreach ($searchables as $key => $value) {
+            foreach ($searchable as $key => $value) {
                 if (!in_array($key, $searchableKeys)) {
                     return false;
                 }
@@ -103,29 +81,75 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
 
         return $models->values();
     }
-
-    protected function isValueFound($value, $operator, $compare): bool
+    
+    protected function checkConditions(array $wheres, array $searchable): bool
     {
-        return match ($operator) {
-            '=' => $compare === $value,
-            '!=' => $compare !== $value,
-            '>' => is_numeric($value) && is_numeric($compare) && $compare > $value,
-            '>=' => is_numeric($value) && is_numeric($compare) && $compare >= $value,
-            '<' => is_numeric($value) && is_numeric($compare) && $compare < $value,
-            '<=' => is_numeric($value) && is_numeric($compare) && $compare <= $value,
+        $conditions = collect($wheres)->map(function (BuilderWhere $where) use ($searchable) {
+            return [
+                'result' => $where->field instanceof Builder ? 
+                    $this->checkConditions($where->field->wheres, $searchable) : 
+                    $this->isValueFound($where, $searchable),
+                'connector' => $where->connector,
+            ];
+        });
+        
+        return $this->executeConditions($conditions);
+    }
+
+    protected function isValueFound(BuilderWhere $where, mixed $model): bool
+    {
+        $modelValue = $model[$where->field];
+
+        return match ($where->operator) {
+            '=' => is_array($modelValue) ? in_array($where->value, $modelValue) : $modelValue === $where->value,
+            '!=' => is_array($modelValue) ? !in_array($where->value, $modelValue) : $modelValue !== $where->value,
+            '>' => is_numeric($modelValue) && is_numeric($where->value) && $modelValue > $where->value,
+            '>=' => is_numeric($modelValue) && is_numeric($where->value) && $modelValue >= $where->value,
+            '<' => is_numeric($modelValue) && is_numeric($where->value) && $modelValue < $where->value,
+            '<=' => is_numeric($modelValue) && is_numeric($where->value) && $modelValue <= $where->value,
             default => false,
         };
     }
+    
+    protected function executeConditions(array $conditions): bool
+    {
+        $previousResult = null;
 
+        $andsResults = [];
+
+        foreach ($conditions as $condition) {
+            if (is_null($previousResult)) {
+                $previousResult = $condition['result'];
+                continue;
+            }
+
+            if ($condition['connector'] === 'OR') {
+                $andsResults[] = $previousResult;
+                if ($previousResult) {
+                    return true;
+                }
+
+                $previousResult = $condition['result'];
+                continue;
+            }
+
+            $previousResult = $condition['result'] && $previousResult;
+        }
+
+        $andsResults[] = $previousResult;
+        
+        return in_array(true, $andsResults);
+    }
+    
     /**
-     * @throws CollectionMeiliSearchException
+     * @throws BuilderException
      */
-    protected function checkQuery(Builder $builder)
+    protected function checkQuery(ScoutBuilder $builder)
     {
         $modelClass = get_class($builder->model);
 
         if (!$builder->model instanceof MeiliSearchSearchableModel) {
-            throw new CollectionMeiliSearchException(
+            throw new BuilderException(
                 "Model '$modelClass' does not implement MeiliSearchSearchableModel interface"
             );
         }
@@ -143,7 +167,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
         $filterableDifference = array_diff($filteredKeys, $filterableKeys);
 
         if ($filterableDifference) {
-            throw new CollectionMeiliSearchException(
+            throw new BuilderException(
                 "Model '$modelClass' method getFilterableAttributes() does not contain elements you're trying to filter. " .
                 'Fields: ' . json_encode($filterableDifference)
             );
@@ -157,7 +181,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
         $sortableDifference = array_diff($sortedKeys, $sortableKeys);
 
         if ($sortableDifference) {
-            throw new CollectionMeiliSearchException(
+            throw new BuilderException(
                 "Model '$modelClass' method getSortableAttributes() does not contain elements you're trying to sort by. " .
                 'Fields: ' . json_encode($sortableDifference)
             );

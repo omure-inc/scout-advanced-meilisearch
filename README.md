@@ -4,10 +4,12 @@
 
 ### Extended scout query builder
 Added next changes to the basic query builder:
-1) ```where('column', '<=', $value)``` - extended where, which supports optional 3 parameters for comparison. 
+1) ```where('column', '<=', $value)``` - extended where, which supports 3 optional parameters for comparison. 
 Two parameters are also allowed.
-2) ```whereBetween('column', [$value1, $value2])```
-3) ```whereNotIn('column', [$value1, $value2, $value3])```
+2) ```where(Clusure $query)``` - where can take a closure as the first parameter in order to group queries (the same for ```orWhere```)
+3) ```whereBetween('column', [$value1, $value2])```
+4) ```whereNotIn('column', [$value1, $value2, $value3])```
+5) All where clauses have or variant: ```orWhere```, ```orWhereIn```, etc
 
 ### Two scout drivers
 

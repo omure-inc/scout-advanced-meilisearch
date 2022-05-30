@@ -2,35 +2,38 @@
 
 namespace Omure\ScoutAdvancedMeilisearch\Engines;
 
-use Laravel\Scout\Builder;
+use Laravel\Scout\Builder as ScoutBuilder;
 use Laravel\Scout\Engines\MeiliSearchEngine;
+use Omure\ScoutAdvancedMeilisearch\Builder;
+use Omure\ScoutAdvancedMeilisearch\BuilderWhere;
 
 class MeiliSearchExtendedEngine extends MeiliSearchEngine
 {
-    protected function filters(Builder $builder): string
+    public function filters(ScoutBuilder $builder): string
     {
-        $filters = collect($builder->wheres)->map(function ($value) {
-            if (is_bool($value[2])) {
-                return sprintf('%s %s %s', $value[0], $value[1], $value[2] ? 'true' : 'false');
+        $filters = collect($builder->wheres)->map(function (BuilderWhere $where) {
+            if ($where->field instanceof Builder) {
+                return $where->connector . ' (' . $this->filters($where->field) . ')';
             }
 
-            return is_numeric($value[2])
-                ? sprintf('%s %s %s', $value[0], $value[1], $value[2])
-                : sprintf('%s %s "%s"', $value[0], $value[1], $value[2]);
+            return $this->formatToString($where);
         });
 
-        foreach ($builder->whereIns as $key => $values) {
-            $filters->push(sprintf('(%s)', collect($values)->map(function ($value) use ($key) {
-                if (is_bool($value)) {
-                    return sprintf('%s = %s', $key, $value ? 'true' : 'false');
-                }
+        $filters = $filters->values()->implode(' ');
+        $filters = ltrim($filters, 'AND ');
+        return ltrim($filters, 'OR ');
+    }
 
-                return filter_var($value, FILTER_VALIDATE_INT) !== false
-                    ? sprintf('%s = %s', $key, $value)
-                    : sprintf('%s = "%s"', $key, $value);
-            })->values()->implode(' OR ')));
+    private function formatToString(BuilderWhere $where): string
+    {
+        $value = $where->value;
+
+        if (is_bool($value)) {
+            $value = $value ? 'true' : 'false';
+        } elseif (!is_numeric($value)) {
+            $value = '"' . $value . '"';
         }
 
-        return $filters->values()->implode(' AND ');
+        return "$where->connector $where->field $where->operator $value";
     }
 }
