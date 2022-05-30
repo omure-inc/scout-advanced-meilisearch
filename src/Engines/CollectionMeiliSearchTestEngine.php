@@ -2,6 +2,7 @@
 
 namespace Omure\ScoutAdvancedMeilisearch\Engines;
 
+use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Laravel\Scout\Builder as ScoutBuilder;
@@ -11,6 +12,8 @@ use Omure\ScoutAdvancedMeilisearch\Builder;
 use Omure\ScoutAdvancedMeilisearch\BuilderWhere;
 use Omure\ScoutAdvancedMeilisearch\Exceptions\BuilderException;
 use Omure\ScoutAdvancedMeilisearch\Interfaces\MeiliSearchSearchableModel;
+
+use function PHPUnit\Framework\callback;
 
 class CollectionMeiliSearchTestEngine extends CollectionEngine
 {
@@ -160,6 +163,11 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
 
         foreach ($builder->wheres as $where) {
             /** @var BuilderWhere $where */
+            if ($where->field instanceof Builder) {
+                $this->checkQuery($where->field);
+                continue;
+            }
+
             $wheres[] = $where->field;
         }
 
