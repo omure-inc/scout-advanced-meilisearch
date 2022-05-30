@@ -2,7 +2,6 @@
 
 namespace Omure\ScoutAdvancedMeilisearch\Engines;
 
-use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Laravel\Scout\Builder as ScoutBuilder;
@@ -12,8 +11,6 @@ use Omure\ScoutAdvancedMeilisearch\Builder;
 use Omure\ScoutAdvancedMeilisearch\BuilderWhere;
 use Omure\ScoutAdvancedMeilisearch\Exceptions\BuilderException;
 use Omure\ScoutAdvancedMeilisearch\Interfaces\MeiliSearchSearchableModel;
-
-use function PHPUnit\Framework\callback;
 
 class CollectionMeiliSearchTestEngine extends CollectionEngine
 {
@@ -31,47 +28,12 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
             ->get()
             ->values();
 
-        if (count($models) === 0) {
+        if (!$models->count()) {
             return $models;
         }
 
         $models = $models->filter(function ($model) use ($builder) {
-            if (!$model->shouldBeSearchable()) {
-                return false;
-            }
-
-            $searchable = $model->toSearchableArray();
-
-            if (count($builder->wheres)) {
-                if (!$this->checkConditions($builder->wheres, $searchable)) {
-                    return false;
-                }
-            }
-
-            if (!$builder->query) {
-                return true;
-            }
-
-            $searchableKeys = $model->getSearchableAttributes();
-
-            foreach ($searchable as $key => $value) {
-                if (!in_array($key, $searchableKeys)) {
-                    return false;
-                }
-
-                if (!is_scalar($value)) {
-                    $value = json_encode($value);
-                }
-
-                $modifiedValue = Str::lower(str_replace(['.', ','], '', $value));
-                $modifiedQuery = Str::lower(str_replace(['.', ','], '', $builder->query));
-
-                if (Str::contains($modifiedValue, $modifiedQuery)) {
-                    return true;
-                }
-            }
-
-            return false;
+            return $this->isFound($builder, $model);
         });
 
         if ($builder->orders) {
@@ -84,7 +46,47 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
 
         return $models->values();
     }
-    
+
+    public function isFound(ScoutBuilder $builder, $model): bool
+    {
+        if (!$model->shouldBeSearchable()) {
+            return false;
+        }
+
+        $searchable = $model->toSearchableArray();
+
+        if (count($builder->wheres)) {
+            if (!$this->checkConditions($builder->wheres, $searchable)) {
+                return false;
+            }
+        }
+
+        if (!$builder->query) {
+            return true;
+        }
+
+        $searchableKeys = $model->getSearchableAttributes();
+
+        foreach ($searchable as $key => $value) {
+            if (!in_array($key, $searchableKeys)) {
+                return false;
+            }
+
+            if (!is_scalar($value)) {
+                $value = json_encode($value);
+            }
+
+            $modifiedValue = Str::lower(str_replace(['.', ','], '', $value));
+            $modifiedQuery = Str::lower(str_replace(['.', ','], '', $builder->query));
+
+            if (Str::contains($modifiedValue, $modifiedQuery)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function checkConditions(array $wheres, array $searchable): bool
     {
         $conditions = collect($wheres)->map(function (BuilderWhere $where) use ($searchable) {
