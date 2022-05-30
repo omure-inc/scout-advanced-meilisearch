@@ -96,7 +96,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
             ];
         });
         
-        return $this->executeConditions($conditions);
+        return $this->executeConditions($conditions->toArray());
     }
 
     protected function isValueFound(BuilderWhere $where, mixed $model): bool
