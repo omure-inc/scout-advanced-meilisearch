@@ -54,6 +54,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
         }
 
         $searchable = $model->toSearchableArray();
+        $searchable[$model->getKeyName()] = $model->getKey();
 
         if (count($builder->wheres)) {
             if (!$this->checkConditions($builder->wheres, $searchable)) {
@@ -167,6 +168,10 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
             /** @var BuilderWhere $where */
             if ($where->field instanceof Builder) {
                 $this->checkQuery($where->field);
+                continue;
+            }
+
+            if ($where->field === $builder->model->getKeyName()) {
                 continue;
             }
 

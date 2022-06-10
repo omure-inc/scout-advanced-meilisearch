@@ -116,6 +116,14 @@ class CollectionDriverTest extends TestCase
                     'field_d' => null,
                     'field_e' => [5, 6, 7],
                 ]);
+
+            $mock
+                ->shouldReceive('getKeyName')
+                ->andReturn('primary_key_name');
+
+            $mock
+                ->shouldReceive('getKey')
+                ->andReturn(22);
         });
 
         $builder = new Builder($model, '');
@@ -191,5 +199,9 @@ class CollectionDriverTest extends TestCase
         $builder->wheres = [];
         $builder->where('field_e', 8);
         $this->assertFalse($engine->isFound($builder, $model));
+
+        $builder->wheres = [];
+        $builder->where('primary_key_name', 22);
+        $this->assertTrue($engine->isFound($builder, $model));
     }
 }
