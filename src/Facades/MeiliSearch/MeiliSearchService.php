@@ -16,18 +16,7 @@ class MeiliSearchService
     {
         $index = $this->meiliSearchClient->index($model->searchableAs());
 
-        /**
-         * Currently bugged.
-         * https://docs.meilisearch.com/reference/api/searchable_attributes.html#update-searchable-attributes
-         *
-         * WARNING
-         *
-         * Due to an implementation bug, manually updating searchableAttributes
-         * will change the displayed order of document fields in the
-         * JSON response. This behavior is inconsistent and
-         * will be fixed in a future release.
-         */
-        //$index->updateSearchableAttributes($model->getSearchableAttributes());
+        $index->updateSearchableAttributes($model->getSearchableAttributes());
         $index->updateSortableAttributes($model->getSortableAttributes());
         $index->updateFilterableAttributes($model->getFilterableAttributes());
     }
