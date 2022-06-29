@@ -43,6 +43,7 @@ This package provides ```MeiliSearch``` facade that has ```updateIndexSettings``
 - ```getSearchableAttributes()``` - for using ```search()``` statements
 - ```getFilterableAttributes()``` - for using ```where()```, including ```whereIn```, ```whereNotIn```, etc. statements
 - ```getSortableAttributes()``` - for using ```orderBy()``` statement
+- ```getTypoToleranceSettings()``` - for typo tolerance
 All methods should return an array of strings which are the names of the parameters specified in ```toSearchableArray()```.
 
 If you change the methods ```getSearchableAttributes()```, ```getFilterableAttributes()```, or ```getSortableAttributes()```
