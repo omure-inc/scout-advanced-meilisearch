@@ -19,5 +19,9 @@ class MeiliSearchService
         $index->updateSearchableAttributes($model->getSearchableAttributes());
         $index->updateSortableAttributes($model->getSortableAttributes());
         $index->updateFilterableAttributes($model->getFilterableAttributes());
+
+        if (method_exists($model, 'getTypoToleranceSettings')) {
+            $index->updateTypoTolerance($model->getTypoToleranceSettings());
+        }
     }
 }
