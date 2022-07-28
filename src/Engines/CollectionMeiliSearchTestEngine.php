@@ -70,7 +70,7 @@ class CollectionMeiliSearchTestEngine extends CollectionEngine
 
         foreach ($searchable as $key => $value) {
             if (!in_array($key, $searchableKeys)) {
-                return false;
+                continue;
             }
 
             if (!is_scalar($value)) {
